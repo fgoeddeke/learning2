@@ -1,0 +1,74 @@
+---
+title: "Practical Machine Learning Project"
+author: "Frank Goeddeke"
+date: "Friday, July 25, 2014"
+output: pdf_document
+---
+
+# Executive Summary
+This project is in partial fulfillment of a Coursera Practical Machine Learning MOOC course taught by Jeff Leek et al., of Johns Hopkins University.  Using data from 6 participants wearing electronic accelerometer devices on the belt, forearm, arm, and dumbell, the goal of this project is to build a machine learning algorithm to predict how well a sample of participants are doing their exercises.  The participants are rated on how well they do exercises in 5 categories, labelled "A", "B", "C", "D", and "E".  Data (19622 observations, 160 variables) was randomly divided into a training data set of 13737 observations (p = 0.70), and a cross validation testing dataset of 5885 observations.  Non-numeric, missing data, and NA data were removed, leaving 52 numeric independent variables.  For simplictiy's sake, no other pre-processing of the data was performed.  A random forest tree was fitted to the training data and cross validated with an accuracy of 0.9963.  Predictions were made on the 20 observations in the testing data set.
+
+# Load Packages
+``` {r load}
+library(randomForest)
+library(caret)
+library(AppliedPredictiveModeling)
+set.seed(975)
+```
+
+# Read in the Data
+``` {r read}
+#Dont forget to set the working directory!
+trainingDataSet <- read.csv(file="pml-training.csv", as.is = TRUE, stringsAsFactors = FALSE, sep=',', na.strings=c('NA','','#DIV/0!'))
+# Then remove the non-numeric columns
+trainingDataSet <- trainingDataSet[,-seq(1:7)]
+trainingDataSet$classe <- as.factor(trainingDataSet$classe)
+testingDataSet <- read.csv(file="pml-testing.csv", as.is = TRUE, stringsAsFactors = FALSE, sep=',', na.strings=c('NA','','#DIV/0!'))
+# Then remove the non-numeric columns
+testingDataSet <- testingDataSet[,-seq(1:7)]
+```
+
+# Clean the data of NA's
+``` {r clean}
+NAtraining <- apply(trainingDataSet,2,function(x) {sum(is.na(x))}) 
+trainingDataSetClean <- trainingDataSet[,which(NAtraining == 0)]
+NAtesting <- apply(testingDataSet,2,function(x) {sum(is.na(x))}) 
+testingDataSetClean <- testingDataSet[,which(NAtesting == 0)]
+```
+NA's and missing data columns need to be removed, as the random forest algorithm won't work with them.
+
+# Create data into training and cross validation data sets
+``` {r partition}
+TrainPart = createDataPartition(trainingDataSetClean$classe, p = 0.7, list=FALSE)
+trainingDataSetClean2 = data.frame(trainingDataSetClean[TrainPart,])
+crossValidation = trainingDataSetClean[-TrainPart,]
+```
+Splitting a data set into a training data set of 70% and a cross validation data set of 30% is fairly common.
+
+
+# Fit the random forest model
+``` {r randomforest}
+modelFitRFnoPCA <- randomForest(trainingDataSetClean2$classe ~., data=trainingDataSetClean2, importance=TRUE)
+predictRFnoPCA <- predict(modelFitRFnoPCA, crossValidation)
+confusionMatrix(predictRFnoPCA, crossValidation$classe)
+```
+For the sake of simplicity (Occam's Razor!), a simple random forest model was fitted to the training data set (13,737 observations) with 52 numeric variables with no pre-processing or missing data.
+
+The random forest model was validated with the cross validation data set of 5,885 observations, randomly split from the original data set.  The accuracy of this model is 0.9963.  Of the 5,885 predictions made in the cross validation sample, only 22 wrong predictions were made.  
+
+# Out of Sample Error
+Accuracy is one measure of out of sample error for non-continuous data.  The accuracy of the random forest model on the cross validation data set is 0.996.  Alternatively, the Kappa Index in the cross validation sample is 0.995.  Both measures indicate a very low error rate.
+
+# Make predictions for testing data set
+``` {r predictions}
+prediction <- predict(modelFitRFnoPCA, testingDataSetClean)
+prediction
+```
+
+# References
+Note:  The data can be downloaded from here:  http://groupware.les.inf.puc-rio.br/har
+
+The citation for the dataset is:
+Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
+
+Read more: http://groupware.les.inf.puc-rio.br/har#ixzz38U5DPb3J
